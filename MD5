@@ -1,8 +1,8 @@
-a422ecf89822e9f83e6725cf6aec7417 *DESCRIPTION
+b4b2096b7f8b54f468bff1d61693fb33 *DESCRIPTION
 a9702969fd70757f157ceaed9642c7bd *NAMESPACE
 65b70e3a2e92746629b81a466fc32e8d *R/appRiori.R
 ea4f233bd8b828ed66711b1c49ba3338 *R/mixedDesign.v0.6.3.R
-75562879bb015d32379407a9a568f110 *inst/app/server.R
+33009588bd229da341e3713decec9e62 *inst/app/server.R
 6e2fb195f43a1cb36c609fcb34d298af *inst/app/ui.R
 ace7f0a3dd0ed829e15a48d58500720d *inst/tutorial/basics.md
 a3abb24bce5aa907d48681168d8c350a *inst/tutorial/basics2.md
