@@ -9,19 +9,22 @@ library(utils, warn.conflicts = FALSE)
 
 load_default_data <- function(id) {
   id <- strsplit(id, ":", TRUE)[[1]]
-  do.call("::", as.list(id))
+  e <- new.env()
+  vars <- data(list = id[2], package = id[1], envir = e)
+  e[[id[length(id)]]]
 }
 
 
 default_data_labels <- function() {
   default_datasets <- utils::data()$results
   default_datasets <- default_datasets[order(default_datasets[,"Title"]),]
-  default_datasets[,"Item"] <- gsub("^([^(]+)( \\(.*)?$","\\1",default_datasets[,"Item"])
-  datasets_select_labels <- sprintf("%s:%s", default_datasets[,"Package"], default_datasets[,"Item"])
-  names(datasets_select_labels) <- sprintf("%s (%s:%s)", default_datasets[,"Title"], default_datasets[,"Package"], default_datasets[,"Item"])
+  cluster <- gsub("^([^(]+)( \\((.*)\\))?$","\\3",default_datasets[,"Item"])
+  item <- gsub("^([^(]+)( \\((.*)\\))?$","\\1",default_datasets[,"Item"])
+  datasets_select_labels <- ifelse(cluster=="", sprintf("%s:%s", default_datasets[,"Package"], item), sprintf("%s:%s:%s", default_datasets[,"Package"], cluster, item))
+  names(datasets_select_labels) <- sprintf("%s (%s:%s)", default_datasets[,"Title"], default_datasets[,"Package"], item)
   datasets_select_labels[vapply(datasets_select_labels, function(id) {
     df <- load_default_data(id)
-    if(is.data.frame(df)) any(apply(df, 2, function(x) is.character(x) || is.factor(x))) else FALSE
+    is.data.frame(df) && any(apply(df, 2, function(x) is.character(x) || is.factor(x)))
   }, logical(1))]
 }
 
@@ -231,6 +234,14 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
     fattore=factor(a[,input$in1])
     if(input$cont=="Treatment"){
       contrasts(fattore)
+    }else if(input$cont=="Simple"){
+      nLevels=length(levels(fattore))
+      dummy <- contr.treatment(nLevels)
+      dimnames(dummy) <- NULL
+      coding <- matrix(rep(1/nLevels, prod(dim(dummy))), ncol=nLevels-1)
+      s_cod <- round((dummy - coding),2)
+      contrasts(fattore)=s_cod
+      contrasts(fattore)
     }else if(input$cont=="Sum"){
       contrasts(fattore)=contr.sum(length(levels(fattore)))
       contrasts(fattore)
@@ -297,7 +308,7 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
         colnames(cm)=paste("C", 1:ncol(cm),sep = "")
         print(cm)
       }},error=function(e){
-        print("Waiting..")
+        cat("Waiting..")
     })
 
 
@@ -312,7 +323,7 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
       rownames(hm)=paste("C", 1:nrow(hm),sep = "")
       print(t(hm))
     },error=function(e){
-      print("Waiting..")
+      cat("Waiting..")
     })
   })
 
@@ -333,7 +344,7 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
         rownames(cm)=paste("C", 1:nrow(cm),sep = "")
         print(round(cm,2))
       }},error=function(e){
-        print("Waiting..")
+        cat("Waiting..")
     })
 
 
@@ -348,10 +359,10 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
       if(is.list(faktor())){
         h <- hypr(faktor(),levels = levels(factor(z_error[,input$in1])))
         hc=cmat(h)
-        print("Contrasts are linearly independent")
+        cat("Contrasts are linearly independent")
       }
     }, error=function(e){
-      print("Waiting..")
+      cat("Waiting..")
     }, warning = function(w) {
       if(grepl("Your hypotheses are not linearly independent", w, fixed = TRUE)){return(w$message)}
     })
@@ -367,6 +378,8 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
     fattore=factor(a[,input$in1])
     if(input$cont=="Treatment"){
       paste0("contr.treatment(",length(levels(fattore)),")")
+    }else if(input$cont=="Simple"){
+      paste("matrix(",(paste("c(",paste(faktor(), collapse = ','),")")),",",nrow(faktor()),",",ncol(faktor()),")")
     }else if(input$cont=="Sum"){
       paste0("contr.sum(",length(levels(fattore)),")")
     }else if(input$cont=="Scaled"){
@@ -533,17 +546,14 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
   ############ The following code produces the basis of the new contrasts of matrix, based on the option selected. It takes as input all the previous line of code
   facktor_int=reactive({
     y=mydf()
-    name1=(levels(factor(y[,input$v1])))
-    name2=(levels(factor(y[,input$v2])))
+
+    levelnames <- levels(if(input$radio== 'Three way') interaction(factor(y[,input$v1]),factor(y[,input$v2]),factor(y[,input$v3])) else interaction(factor(y[,input$v1]),factor(y[,input$v2])))
+
       reat=unlist(reattivo_int())
-      res=list()
 
-      for (a in 1:length(reat)) {
-        res[[a]]=formula(reat[a])
-      }
+      res = lapply(reat, formula)
 
-      res
-      h=hypr(res)
+      h=hypr(res, levels = levelnames)
       cm=cmat(h)
       cm
 
@@ -751,6 +761,14 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
     fattore=factor(a[,input$v1])
     if(input$cont1=="Treatment"){
       contrasts(fattore)
+    }else if(input$cont1=="Simple"){
+      nLevels1=length(levels(fattore))
+      dummy1 <- contr.treatment(nLevels1)
+      dimnames(dummy1) <- NULL
+      coding1 <- matrix(rep(1/nLevels1, prod(dim(dummy1))), ncol=nLevels1-1)
+      s_cod1 <- round((dummy1 - coding1),2)
+      contrasts(fattore)=s_cod1
+      contrasts(fattore)
     }else if(input$cont1=="Sum"){
       contrasts(fattore)=contr.sum(length(levels(fattore)))
       contrasts(fattore)
@@ -888,6 +906,14 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
     fattore=factor(a[,input$v2])
     if(input$cont2=="Treatment"){
       contrasts(fattore)
+    }else if(input$cont2=="Simple"){
+      nLevels2=length(levels(fattore))
+      dummy2 <- contr.treatment(nLevels2)
+      dimnames(dummy2) <- NULL
+      coding2 <- matrix(rep(1/nLevels2, prod(dim(dummy2))), ncol=nLevels2-1)
+      s_cod2 <- round((dummy2 - coding2),2)
+      contrasts(fattore)=s_cod2
+      contrasts(fattore)
     }else if(input$cont2=="Sum"){
       contrasts(fattore)=contr.sum(length(levels(fattore)))
       contrasts(fattore)
@@ -1024,6 +1050,14 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
     a=mydf()
     fattore=factor(a[,input$v3])
     if(input$cont3=="Treatment"){
+      contrasts(fattore)
+    }else if(input$cont3=="Simple"){
+      nLevels3=length(levels(fattore))
+      dummy3 <- contr.treatment(nLevels3)
+      dimnames(dummy3) <- NULL
+      coding3 <- matrix(rep(1/nLevels3, prod(dim(dummy3))), ncol=nLevels3-1)
+      s_cod3 <- round((dummy3 - coding3),2)
+      contrasts(fattore)=s_cod3
       contrasts(fattore)
     }else if(input$cont3=="Sum"){
       contrasts(fattore)=contr.sum(length(levels(fattore)))
@@ -1182,7 +1216,7 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
       }else{
         cont_mat_int()
       }},error=function(e){
-        print("Waiting..")
+        cat("Waiting..")
     })
 
   })
@@ -1199,7 +1233,7 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
         h <- hypr(cont_mat_int())
         print(t(hmat(h)))
       }},error=function(e){
-        print("Waiting..")
+        cat("Waiting..")
     })
 
 
@@ -1220,7 +1254,7 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
         rownames(cm)=paste("C", 1:nrow(cm),sep = "")
         print(round(cm,2))
       }},error=function(e){
-        print("Waiting..")
+        cat("Waiting..")
     })
 
   })
@@ -1232,9 +1266,9 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
     tryCatch({
       if(input$fc2==TRUE){
         mat=facktor_int()
-        print("Contrasts are linearly independent")
+        cat("Contrasts are linearly independent")
       }}, error=function(e){
-      print("Waiting..")
+      cat("Waiting..")
     }, warning = function(w) {
       if(grepl("Your hypotheses are not linearly independent", w, fixed = TRUE)){return(w$message)}
     })
@@ -1249,6 +1283,8 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
     fattore=factor(a[,input$v1])
     if(input$cont1=="Treatment"){
       paste0("contr.treatment(",length(levels(fattore)),")")
+    }else if(input$cont1=="Simple"){
+      paste("matrix(",(paste("c(",paste(faktorS1(), collapse = ','),")")),",",nrow(faktorS1()),",",ncol(faktorS1()),")")
     }else if(input$cont1=="Sum"){
       paste0("contr.sum(",length(levels(fattore)),")")
     }else if(input$cont1=="Scaled"){
@@ -1273,6 +1309,8 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
     fattore=factor(a[,input$v2])
     if(input$cont2=="Treatment"){
       paste0("contr.treatment(",length(levels(fattore)),")")
+    }else if(input$cont2=="Simple"){
+      paste("matrix(",(paste("c(",paste(faktorS2(), collapse = ','),")")),",",nrow(faktorS2()),",",ncol(faktorS2()),")")
     }else if(input$cont2=="Sum"){
       paste0("contr.sum(",length(levels(fattore)),")")
     }else if(input$cont2=="Scaled"){
@@ -1297,6 +1335,8 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
     fattore=factor(a[,input$v3])
     if(input$cont3=="Treatment"){
       paste0("contr.treatment(",length(levels(fattore)),")")
+    }else if(input$cont3=="Simple"){
+      paste("matrix(",(paste("c(",paste(faktorS3(), collapse = ','),")")),",",nrow(faktorS3()),",",ncol(faktorS3()),")")
     }else if(input$cont3=="Sum"){
       paste0("contr.sum(",length(levels(fattore)),")")
     }else if(input$cont3=="Scaled"){
@@ -1499,6 +1539,130 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
 
 
   })
+
+   output$selection=renderPrint({
+     a=mydf()
+     fattore=factor(a[,input$in1])
+     if(input$cont=="Treatment"){
+       cat(paste0("You selected ",input$cont," contrasts."))
+       cat(sep = "\n")
+       cat(paste0("Your final comparisons will be: ",length(levels(fattore))-1))
+       cat(sep = "\n")
+       cat(paste0("With Treatment contrasts, you can compare your n-1 levels with a reference level."))
+       cat(sep = "\n")
+       cat(paste0("Remember: in this case, the reference level is: ",levels(fattore)[1]))
+     }else if(input$cont=="Simple"){
+       cat(paste0("You selected ",input$cont," contrasts."))
+       cat(sep = "\n")
+       cat(paste0("Your final comparisons will be: ",length(levels(fattore))-1))
+       cat(sep = "\n")
+       cat(paste0("With Simple contrasts, you can compare your n-1 levels with a reference level."))
+       cat(sep = "\n")
+       cat(paste0("These contrasts are centered!"))
+       cat(sep = "\n")
+       cat(paste0("Remember: in this case, the reference level is: ",levels(fattore)[1]))
+     }else if(input$cont=="Sum"){
+       cat(paste0("You selected ",input$cont," contrasts."))
+       cat(sep = "\n")
+       cat(paste0("Your final comparisons will be: ",length(levels(fattore))-1))
+       cat(sep = "\n")
+       cat(paste0("With Sum contrasts, you can compare your n-1 levels with the grand mean of the observations."))
+       cat(sep = "\n")
+       cat(paste0("Remember: in this case, the level selected to represent the grand mean is: ",levels(fattore)[length(levels(fattore))]))
+     }else if(input$cont=="Scaled"){
+       cat(paste0("You selected ",input$cont," contrasts."))
+       cat(sep = "\n")
+       cat(paste0("Your final comparisons will be: ",length(levels(fattore))-1))
+       cat(sep = "\n")
+       cat(paste0("With Scaled Sum contrasts, you can compare your n-1 levels with the grand mean of the observations."))
+       cat(sep = "\n")
+       cat(paste0("These contrasts are scaled!"))
+       cat(sep = "\n")
+       cat(paste0("Remember: in this case, the level selected to represent the grand mean is: ",levels(fattore)[length(levels(fattore))]))
+     }else if(input$cont=="Sliding difference"){
+       cat(paste0("You selected ",input$cont," contrasts."))
+       cat(sep = "\n")
+       cat(paste0("Your final comparisons will be: ",length(levels(fattore))-1))
+       cat(sep = "\n")
+       cat(paste0("With Repeated contrasts, you can compare each level with its subsequent neighbor."))
+     }else if(input$cont=="Helmert"){
+       cat(paste0("You selected ",input$cont," contrasts."))
+       cat(sep = "\n")
+       cat(paste0("Your final comparisons will be: ",length(levels(fattore))-1))
+       cat(sep = "\n")
+       cat(paste0("With Helmert contrasts, you can compare each level with the average of all its preceding levels."))
+       cat(sep = "\n")
+       cat(paste0("These contrasts are orthogonal!"))
+     }else if(input$cont=="Reverse Helmert"){
+       cat(paste0("You selected ",input$cont," contrasts."))
+       cat(sep = "\n")
+       cat(paste0("Your final comparisons will be: ",length(levels(fattore))-1))
+       cat(sep = "\n")
+       cat(paste0("With Reverse Helmert contrasts, you can compare each level with the average of all its subsequent levels."))
+       cat(sep = "\n")
+       cat(paste0("These contrasts are orthogonal!"))
+     }else if(input$cont=="Polynomial"){
+       cat(paste0("You selected ",input$cont," contrasts."))
+       cat(sep = "\n")
+       cat(paste0("Your final comparisons will be: ",length(levels(fattore))-1))
+       cat(sep = "\n")
+       cat(paste0("With Polynomial contrasts, you can shape the trend of your levels."))
+       cat(sep = "\n")
+       cat(paste0("These contrasts are orthogonal!"))
+     }else{
+       cat(paste0("You selected ",input$cont," contrasts."))
+       cat(sep = "\n")
+       cat(paste0("Your final comparisons will be: ",as.numeric(input$hm1)))
+       cat(sep = "\n")
+       cat(paste0("With Customized contrasts, you can compare the levels you want in the way you want."))
+       cat(sep = "\n")
+       cat(paste0("These contrasts are orthogonal!"))
+     }
+   })
+
+   output$selection2=renderPrint({
+     tryCatch({
+       if(input$fc2==TRUE){
+         mat=facktor_int()
+         cat(paste0("You selected fully customazized interaction contrasts."))
+         cat(sep = "\n")
+         cat(sep = "\n")
+         cat(paste0("With fully customazized contrasts, you considering the factorial design as one-way combination variable, also known as linearization of the design. In other words, the levels of all variables are combined to define a unique variable with a number of levels equal to the product of the starting variables' levels."))
+         cat(sep = "\n")
+         cat(paste0("Your final comparisons will be: ",ncol(mat)))
+       }else{
+         mat2=cont_mat_int()
+         cat(paste0("You selected fully customazized interaction contrasts."))
+         cat(sep = "\n")
+         cat(paste0("For your first variable, you selected ",input$cont1," contrasts."))
+         cat(sep = "\n")
+         cat(paste0("For your second variable, you selected ",input$cont2," contrasts."))
+         if(input$radio=="Three way"){
+           cat(sep = "\n")
+           cat(paste0("For your third variable, you selected ",input$cont3," contrasts."))
+         }
+         cat(sep = "\n")
+         if(input$radio=="Two way"){
+         cat(paste0("Remember that, from column C1 to column C",ncol(faktorS1()), " you are examining the comparisons related to the first variable"))
+         cat(sep = "\n")
+         cat(paste0("Remember that, from column C",ncol(faktorS1())+1, " to column C",ncol(faktorS1())+ncol(faktorS2()), " you are examining the comparison related to the second variable"))
+         cat(sep = "\n")
+         cat(paste0("Remember that, the last ",ncol(mat2)-(ncol(faktorS1())+ncol(faktorS2()))-1, " columns refer to the interaction comparisons"))
+         }else{
+           cat(paste0("Remember that, from column C1 to column C",ncol(faktorS1()), " you are examining the comparisons related to the first variable"))
+           cat(sep = "\n")
+           cat(paste0("Remember that, from column C",ncol(faktorS1())+1, " to column C",ncol(faktorS1())+ncol(faktorS2()), " you are examining the comparison related to the second variable"))
+           cat(sep = "\n")
+           cat(paste0("Remember that, from column C",ncol(faktorS1())+ncol(faktorS2())+1, " to column C",ncol(faktorS1())+ncol(faktorS2())+ncol(faktorS3()), " you are examining the comparison related to the third variable"))
+           cat(sep = "\n")
+           cat(paste0("Remember that, the last ",ncol(mat2)-(ncol(faktorS1())+ncol(faktorS2())+ncol(faktorS3()))-1, " columns refer to the interaction comparisons"))
+         }
+         cat(sep = "\n")
+         cat(paste0("Interpret the model coefficients accordingly!"))
+       }},error=function(e){
+         # cat("Waiting..")
+       })
+   })
 
 
 }

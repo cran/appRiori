@@ -1,5 +1,5 @@
 Package: appRiori
-Version: 0.0.2
+Version: 0.0.3
 Title: Code and Obtain Customized Planned Comparisons with 'appRiori'
 Authors@R: 
     c(
@@ -17,11 +17,11 @@ BugReports: https://github.com/Ugranziol/appRiori/issues
 Imports: dplyr, DT, hypr, markdown, MASS, pracma, rhandsontable, shiny,
         shinythemes, sortable, stringr
 NeedsCompilation: no
-Packaged: 2023-04-28 09:46:31 UTC; max
+Packaged: 2023-08-11 10:42:52 UTC; LABB08
 Author: Umberto Granziol [aut, cre],
   Maximilian Rabe [aut] (<https://orcid.org/0000-0002-2556-5644>),
   Andrea Spoto [aut],
   Giulio Vidotto [aut]
 Maintainer: Umberto Granziol <umberto.granziol@unipd.it>
 Repository: CRAN
-Date/Publication: 2023-04-28 11:00:02 UTC
+Date/Publication: 2023-08-11 12:03:50 UTC
