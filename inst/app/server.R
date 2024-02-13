@@ -61,6 +61,8 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
    return(mydf_0)
   })
 
+ ncomparisons <- reactiveValues()
+
  mydfname = reactive({
    if(input$data_type == "upload") {
      req(input$file1)
@@ -134,10 +136,12 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
   ############# When the variable are correctly uploaded, it is given the user to select the number of contrast to set, out of n-1 contrasts
   observeEvent(input$in1,{
     y=mydf()
+    ncomparisons$hm1 <- length(levels(factor(y[,input$in1])))-1
     updateSelectInput(session, "hm1",
-                       choices = 1:(length(levels(factor(y[,input$in1])))-1),
-                      selected = length(levels(factor(y[,input$in1])))-1
+                       choices = 1:ncomparisons$hm1,
+                      selected = ncomparisons$hm1
                        )
+
 
   })
 
@@ -281,7 +285,8 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
   output$lev=renderPrint({
     y=mydf()
 
-    cbind(levels(factor(y[,input$in1])))
+    lev_tab=data.frame(V1=cbind(levels(factor(y[,input$in1]))))
+    lev_tab
 
   })
 
@@ -294,32 +299,69 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
   })
 
 
+# ############# This code allows to display the new contrast matrix
+# output$new=renderPrint({
+#   z_new=mydf()
+#   tryCatch({
+#     if(is.list(faktor())){
+#       h <- hypr(faktor(),levels = levels(factor(z_new[,input$in1])))
+#       if(input$cont == "Customized") {
+#         h <- filler_contrasts(h, ncomparisons$hm1)
+#
+#       } else {
+#        names(h) <- paste0("C",seq_along(names(h)))
+#       }
+#       cm = cmat(h, as_fractions = FALSE)
+#       cm = matrix(cm, nrow = nrow(cm), ncol = ncol(cm), dimnames = dimnames(cm))
+#       print(round(cm,2))
+#     }else{
+#       cm=faktor()
+#       colnames(cm)=paste("C", 1:ncol(cm),sep = "")
+#       print(round(cm,2))
+#     }},error=function(e){
+#       cat("Waiting..")
+#   })
+#
+#
+# })
+
   ############## This code allows to display the new contrast matrix
   output$new=renderPrint({
     z_new=mydf()
     tryCatch({
       if(is.list(faktor())){
         h <- hypr(faktor(),levels = levels(factor(z_new[,input$in1])))
-        cm=cmat(h)
-        colnames(cm)=paste("C", 1:ncol(cm),sep = "")
-        print(cm)
+        if(as.numeric(input$hm1)<ncomparisons$hm1) {
+          h <- filler_contrasts(h, ncomparisons$hm1)
+          cm = cmat(h, as_fractions = FALSE)
+          cm = matrix(cm, nrow = nrow(cm), ncol = ncol(cm), dimnames = dimnames(cm))
+          #print(round(cm,2))
+        } else {
+          cm = cmat(h, as_fractions = FALSE)
+          cm = matrix(cm, nrow = nrow(cm), ncol = ncol(cm),
+                      dimnames = list(levels(h),paste0("C",1:ncol(cm))))
+          #print(round(cm,2))
+        }
+        print(round(cm,2))
+
       }else{
         cm=faktor()
         colnames(cm)=paste("C", 1:ncol(cm),sep = "")
-        print(cm)
+        print(round(cm,2))
       }},error=function(e){
         cat("Waiting..")
-    })
+      })
 
 
   })
+
 
   ############## This code allows to display the hypothesis matrix related to the new contrast matrix
   output$hypmat=renderPrint({
     z_hypmat=mydf()
     tryCatch({
       h <- hypr(faktor(),levels = levels(factor(z_hypmat[,input$in1])))
-      hm=hmat(h)
+      hm=round(hmat(h, as_fractions=FALSE),2)
       rownames(hm)=paste("C", 1:nrow(hm),sep = "")
       print(t(hm))
     },error=function(e){
@@ -393,7 +435,7 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
     }else if(input$cont=="Polynomial"){
       paste0("contr.poly(",length(levels(fattore)),")")
     }else{
-      h <- hypr(faktor(),levels = levels(factor(a[,input$in1])))
+      h <- hypr(faktor(),levels = levels(factor(a[,input$in1]))) %>% filler_contrasts(ncomparisons$hm1)
       paste("matrix(",(paste("c(",paste(cmat(h), collapse = ','),")")),",",nrow(cmat(h)),",",ncol(cmat(h)),")")
     }
 
@@ -401,25 +443,37 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
 
   ############## The following lines prints the code corresponding to the solution planned by the user.
   output$res=renderPrint({
+    tryCatch({
     a=mydf()
     fname=mydfname()
-    cat(paste0(fname,"$",input$in1,"=","factor(",fname,"$",input$in1,")"))
-    cat(sep = "\n")
     h = hypr(faktor(),levels = levels(factor(a[,input$in1])))
+    if(is.null(input$radio_output)){
+      cat("Please, select the kind of output you prefer!")
+    }else if(input$radio_output=="br"){
+      cat(paste0(fname,"$",input$in1,"=","factor(",fname,"$",input$in1,")"))
+      cat(sep = "\n")
     if(input$cont=="Customized"){
-      cat(paste0("contrasts(",fname,"$",input$in1,",","how.many=",ncol( cmat(h)),")","=",faktor2()))
+      cat(paste0("contrasts(",fname,"$",input$in1,",","how.many=",ncomparisons$hm1,")","=",faktor2()))
     }else{
       cat(paste0("contrasts(",fname,"$",input$in1,")","=",faktor2()))
     }
-    cat(sep = "\n")
-    cat(paste0("########### with hypr package"))
-    cat(sep = "\n")
-    cat(paste0("h <- ",as.character(hypr_call(h))))
-    cat(sep = "\n")
-    cat(paste0("contrasts(",fname,"$",input$in1,")",
-               "=","cmat(h)"))
+      }else{
+        cat(paste0(fname,"$",input$in1,"=","factor(",fname,"$",input$in1,")"))
+        cat(sep = "\n")
+        cat(paste0("h <- ",as.character(hypr_call(h))))
+        cat(sep = "\n")
+        if(input$cont=="Customized"){
+          cat(paste0("contrasts(",fname,"$",input$in1,", how.many =",ncomparisons$hm1,")",
+                     "=","cmat(h)"))
+        } else {
+          cat(paste0("contrasts(",fname,"$",input$in1,")",
+                     "=","cmat(h)"))
+        }
+      }
 
-
+  },error=function(e){
+    cat("It seems that something is missing. Complete the previous step!")
+  })
 
   })
 
@@ -442,13 +496,19 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
     }else{
       lev_interaction=factor(levels(interaction(fattore1,fattore2,fattore3,sep="_")))
     }
-
+    ncomparisons$hm2 <- length(levels(lev_interaction))-1
     updateSelectInput(session, "hm2",
-                      choices = 1:(length(levels(lev_interaction))-1),
-                      selected = length(levels(lev_interaction))-1
+                      choices = 1:ncomparisons$hm2,
+                      selected = ncomparisons$hm2
     )
 
   })
+
+
+  # observeEvent(input$resetAll, {
+  #   shinyjs::reset("int-panel")
+  # })
+
 
   ############## Reactive element that allows to generate the drag-n-drop menu for the "Fully customized 1" option.
   toObserve= reactive({
@@ -458,6 +518,44 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
   ############## Chuck of code that is required when the user select the option "Fully customized 1" for the drag-n-drop option
   ############## Step 1: creating the drag-n-drop menus, with (n1 X n2) -1 blocks to drag. For each Block, a different input is defined.
 
+  # observeEvent(toObserve(), {
+  #   a=mydf()
+  #   ifelse(input$radio== 'Three way',
+  #          assign("toint",interaction(factor(a[,input$v1]),factor(a[,input$v2]),factor(a[,input$v3]))),
+  #          assign("toint",interaction(factor(a[,input$v1]),factor(a[,input$v2]))))
+  #
+  #   output$inputGroup2 = renderUI({
+  #     ifelse(length(levels(toint))==1,assign("num2",1),assign("num2",as.numeric(input$hm2)))
+  #     input_list <- lapply(1:num2, function(i) {
+  #       inputName <- paste("input", i, sep = "")
+  #       bucket_list(
+  #         header = paste("contrast #",i),
+  #         group_name = "bucket_list_group",
+  #         orientation = "horizontal",
+  #         add_rank_list(
+  #           text = "Drag from here",
+  #           labels =
+  #             levels(toint)
+  #           ,
+  #           input_id = inputName
+  #         ),
+  #         add_rank_list(
+  #           text = "to here",
+  #           labels = NULL,
+  #           input_id = paste(inputName,1,sep = "")
+  #         ),
+  #         add_rank_list(
+  #           text = "or here",
+  #           labels = NULL,
+  #           input_id = paste(inputName,2,sep = "")
+  #         )
+  #
+  #       )
+  #     })
+  #     do.call(tagList, input_list)
+  #   })
+  # })
+
   observeEvent(toObserve(), {
     a=mydf()
     ifelse(input$radio== 'Three way',
@@ -466,8 +564,8 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
 
     output$inputGroup2 = renderUI({
       ifelse(length(levels(toint))==1,assign("num2",1),assign("num2",as.numeric(input$hm2)))
-      input_list <- lapply(1:num2, function(i) {
-        inputName <- paste("input", i, sep = "")
+      input_list2 <- lapply(1:num2, function(i) {
+        inputName2 <- paste("input", i, sep = "")
         bucket_list(
           header = paste("contrast #",i),
           group_name = "bucket_list_group",
@@ -477,26 +575,72 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
             labels =
               levels(toint)
             ,
-            input_id = inputName
+            input_id = paste(inputName2,"_4",sep="")
+            #input_id = inputName2
           ),
           add_rank_list(
             text = "to here",
             labels = NULL,
-            input_id = paste(inputName,1,sep = "")
+            input_id = paste(inputName2,"g",sep = "")
           ),
           add_rank_list(
             text = "or here",
             labels = NULL,
-            input_id = paste(inputName,2,sep = "")
+            input_id = paste(inputName2,"h",sep = "")
           )
 
         )
       })
-      do.call(tagList, input_list)
+      do.call(tagList, input_list2)
     })
   })
-
   ############## For each block, the input name is stored and manipulated to fit an hypr() model. Basically, This code create a list of formulas.
+  # reattivo_int=reactive({
+  #   a=mydf()
+  #   ifelse(input$radio== 'Three way',
+  #          assign("toint",interaction(factor(a[,input$v1]),factor(a[,input$v2]),factor(a[,input$v3]))),
+  #          assign("toint",interaction(factor(a[,input$v1]),factor(a[,input$v2]))))
+  #
+  #   ifelse(length(levels(toint))==1,assign("num2",1),assign("num2",as.numeric(input$hm2)))
+  #   eta=paste(lapply(1:num2, function(i) {
+  #     inputName1 <- paste("input", i, "1",sep = "")
+  #     if(length(input[[inputName1]])==1){
+  #       input[[inputName1]]
+  #     }else{
+  #       paste(input[[inputName1]],collapse="+")
+  #     }
+  #   }))
+  #
+  #   for (e in 1:length(eta)) {
+  #     if(str_detect(eta[[e]],"\\+")==FALSE){
+  #       eta[[e]]
+  #     }else{
+  #       eta[[e]]=paste("(",eta[[e]],")","/",length(str_split(eta[[e]], "\\+")[[1]]))
+  #     }
+  #   }
+  #
+  #   beta=paste(lapply(1:num2, function(i) {
+  #     inputName2 <- paste("input", i, "2",sep = "")
+  #     if(length(input[[inputName2]])==1){
+  #       input[[inputName2]]
+  #     }else{
+  #       paste(input[[inputName2]],collapse="+")
+  #     }
+  #
+  #   }))
+  #
+  #   for (e in 1:length(beta)) {
+  #     if(str_detect(beta[[e]],"\\+")==FALSE){
+  #       beta[[e]]
+  #     }else{
+  #       beta[[e]]=paste("(",beta[[e]],")","/",length(str_split(beta[[e]], "\\+")[[1]]))
+  #     }
+  #   }
+  #
+  #   list(paste(eta,"~",beta))
+  #
+  # })
+
   reattivo_int=reactive({
     a=mydf()
     ifelse(input$radio== 'Three way',
@@ -505,11 +649,11 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
 
     ifelse(length(levels(toint))==1,assign("num2",1),assign("num2",as.numeric(input$hm2)))
     eta=paste(lapply(1:num2, function(i) {
-      inputName1 <- paste("input", i, "1",sep = "")
-      if(length(input[[inputName1]])==1){
-        input[[inputName1]]
+      inputName21 <- paste("input", i, "g",sep = "")
+      if(length(input[[inputName21]])==1){
+        input[[inputName21]]
       }else{
-        paste(input[[inputName1]],collapse="+")
+        paste(input[[inputName21]],collapse="+")
       }
     }))
 
@@ -522,11 +666,11 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
     }
 
     beta=paste(lapply(1:num2, function(i) {
-      inputName2 <- paste("input", i, "2",sep = "")
-      if(length(input[[inputName2]])==1){
-        input[[inputName2]]
+      inputName22 <- paste("input", i, "h",sep = "")
+      if(length(input[[inputName22]])==1){
+        input[[inputName22]]
       }else{
-        paste(input[[inputName2]],collapse="+")
+        paste(input[[inputName22]],collapse="+")
       }
 
     }))
@@ -543,6 +687,7 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
 
   })
 
+
   ############ The following code produces the basis of the new contrasts of matrix, based on the option selected. It takes as input all the previous line of code
   facktor_int=reactive({
     y=mydf()
@@ -554,8 +699,10 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
       res = lapply(reat, formula)
 
       h=hypr(res, levels = levelnames)
-      cm=cmat(h)
-      cm
+      cm=cmat(h,as_fractions = FALSE)
+      cm2=matrix(cm,nrow = nrow(cm),ncol = ncol(cm))
+      rownames(cm2)=rownames(cm)
+      cm2
 
 
 
@@ -662,10 +809,12 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
   ############# When the variable are correctly uploaded, it is given the user to select the number of contrast to set, out of n-1 contrasts
   observeEvent(input$v1,{
     y=mydf()
+    ncomparisons$ihm1 <- length(levels(factor(y[,input$v1])))-1
     updateSelectInput(session, "ihm1",
-                      choices = 1:(length(levels(factor(y[,input$v1])))-1),
-                      selected = length(levels(factor(y[,input$v1])))-1
+                      choices = 1:ncomparisons$ihm1,
+                      selected = ncomparisons$ihm1
     )
+
 
   })
 
@@ -807,9 +956,10 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
   ############# When the variable are correctly uploaded, it is given the user to select the number of contrast to set, out of n-1 contrasts
   observeEvent(input$v2,{
     y=mydf()
+    ncomparisons$ihm2 <- length(levels(factor(y[,input$v2])))-1
     updateSelectInput(session, "ihm2",
-                      choices = 1:(length(levels(factor(y[,input$v2])))-1),
-                      selected = length(levels(factor(y[,input$v2])))-1
+                      choices = 1:ncomparisons$ihm2,
+                      selected = ncomparisons$ihm2
     )
 
   })
@@ -952,9 +1102,10 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
   ############# When the variable are correctly uploaded, it is given the user to select the number of contrast to set, out of n-1 contrasts
   observeEvent(input$v3,{
     y=mydf()
+    ncomparisons$ihm3 <- length(levels(factor(y[,input$v3])))-1
     updateSelectInput(session, "ihm3",
-                      choices = 1:(length(levels(factor(y[,input$v3])))-1),
-                      selected = length(levels(factor(y[,input$v3])))-1
+                      choices = 1:ncomparisons$ihm3,
+                      selected = ncomparisons$ihm3
     )
 
   })
@@ -1116,14 +1267,14 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
 
       if(input$cont1=="Customized"){
         h1=hypr(faktorS1(),levels=levels(factor(y[,input$v1])))
-        contrasts(simdat4[,1],how.many=ncol(cmat(h1)))=cmat(h1)
+        contrasts(simdat4[,1],how.many=ncomparisons$ihm1)=cmat(h1)
       }else{
         contrasts(simdat4[,1])=faktorS1()
       }
 
       if(input$cont2=="Customized"){
         h2=hypr(faktorS2(),levels=levels(factor(y[,input$v2])))
-        contrasts(simdat4[,2],how.many=ncol(cmat(h2)))=cmat(h2)
+        contrasts(simdat4[,2],how.many=ncomparisons$ihm2)=cmat(h2)
       }else{
         contrasts(simdat4[,2])=faktorS2()
       }
@@ -1131,7 +1282,7 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
 
       if(input$cont3=="Customized"){
         h3=hypr(faktorS3(),levels=levels(factor(y[,input$v3])))
-        contrasts(simdat4[,3],how.many=ncol(cmat(h3)))=cmat(h3)
+        contrasts(simdat4[,3],how.many=ncomparisons$ihm3)=cmat(h3)
       }else{
         contrasts(simdat4[,3])=faktorS3()
       }
@@ -1145,7 +1296,11 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
         as.matrix()
 
       rownames(Xctr)=sort(levels(interaction(simdat4[,1],simdat4[,2],simdat4[,3],sep="_",lex.order = F)))
-      colnames(Xctr)[2:length(colnames(Xctr))]=paste("C",1:(ncol(Xctr)-1),sep = "")
+      #colnames(Xctr)[2:length(colnames(Xctr))]=paste("C",1:(ncol(Xctr)-1),sep = "")
+      isfiller <- grepl("F[0-9]+($|:)", colnames(Xctr)[-1])
+      colnames(Xctr)[-1][isfiller] <- paste0("F", seq_len(sum(isfiller)))
+      colnames(Xctr)[-1][!isfiller] <- paste0("C", seq_len(sum(!isfiller)))
+      Xctr <- cbind(Xctr[,1,drop=FALSE], Xctr[,1+which(!isfiller),drop=FALSE], Xctr[,1+which(isfiller),drop=FALSE])
 
       # if(input$onlyI==TRUE){
       #   int_values=(size1-1)+(size2-1)+(size3-1)+2
@@ -1164,14 +1319,14 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
 
       if(input$cont1=="Customized"){
         h1=hypr(faktorS1(),levels=levels(factor(y[,input$v1])))
-        contrasts(simdat4[,1],how.many=ncol(cmat(h1)))=cmat(h1)
+        contrasts(simdat4[,1],how.many=ncomparisons$ihm1)=cmat(h1)
       }else{
         contrasts(simdat4[,1])=faktorS1()
       }
 
       if(input$cont2=="Customized"){
         h2=hypr(faktorS2(),levels=levels(factor(y[,input$v2])))
-        contrasts(simdat4[,2],how.many=ncol(cmat(h2)))=cmat(h2)
+        contrasts(simdat4[,2],how.many=ncomparisons$ihm2)=cmat(h2)
       }else{
         contrasts(simdat4[,2])=faktorS2()
       }
@@ -1184,7 +1339,11 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
         as.matrix()
 
       rownames(Xctr)=sort(levels(interaction(simdat4[,1],simdat4[,2],sep="_",lex.order = F)))
-      colnames(Xctr)[2:length(colnames(Xctr))]=paste("C",1:(ncol(Xctr)-1),sep = "")
+      #colnames(Xctr)[2:length(colnames(Xctr))]=paste("C",1:(ncol(Xctr)-1),sep = "")
+      isfiller <- grepl("F[0-9]+($|:)", colnames(Xctr)[-1])
+      colnames(Xctr)[-1][isfiller] <- paste0("F", seq_len(sum(isfiller)))
+      colnames(Xctr)[-1][!isfiller] <- paste0("C", seq_len(sum(!isfiller)))
+      Xctr <- cbind(Xctr[,1,drop=FALSE], Xctr[,1+which(!isfiller),drop=FALSE], Xctr[,1+which(isfiller),drop=FALSE])
 
       # if(input$onlyI==TRUE){
       #   int_values=(size1-1)+(size2-1)+2
@@ -1202,7 +1361,11 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
 
   ############## This code allows to display the default simplified contrast matrix.
   output$original_int=renderPrint({
-   cont_mat()
+    tryCatch({
+      cont_mat()
+    },error=function(e){
+      cat("Select different variables!")
+    })
 
   })
 
@@ -1212,9 +1375,13 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
       if(input$fc2==TRUE){
         mat=facktor_int()
         colnames(mat)=paste("C",1:(ncol(mat)),sep = "")
-        mat
+        h <- hypr(mat) %>% filler_contrasts(ncomparisons$hm2)
+        mat <- cmat(h, as_fractions = FALSE)
+        mat <- matrix(mat, nrow = nrow(mat), ncol = ncol(mat), dimnames = dimnames(mat))
+        round(mat,2)
       }else{
-        cont_mat_int()
+        cmi=cont_mat_int()
+        round(cmi,2)
       }},error=function(e){
         cat("Waiting..")
     })
@@ -1226,12 +1393,12 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
     tryCatch({
       if(input$fc2==TRUE){
         h <- hypr(facktor_int())
-        hm=hmat(h)
+        hm=round(hmat(h,as_fractions=FALSE),2)
         rownames(hm)=paste("C",1:(nrow(hm)),sep = "")
         print(t(hm))
       }else{
         h <- hypr(cont_mat_int())
-        print(t(hmat(h)))
+        print(round(t(hmat(h,as_fractions=FALSE)),2))
       }},error=function(e){
         cat("Waiting..")
     })
@@ -1398,66 +1565,65 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
  ############## The following lines prints the "ready-to-use" code corresponding to the solution planned by the user.
 
    output$res_int=renderPrint({
+     tryCatch({
     fname=mydfname()
     a=mydf()
+    if(is.null(input$radio_output2)){
+      cat("Please, select the kind of output you prefer!")
+    }else{
     if(input$radio== 'Two way'){
       cat(paste0(fname,"$",input$v1,"=","factor(",fname,"$",input$v1,")"))
       cat(sep = "\n")
       cat(paste0(fname,"$",input$v2,"=","factor(",fname,"$",input$v2,")"))
       cat(sep = "\n")
       if(input$fc2==TRUE){
+        if(input$radio_output2=="br"){
         cat(paste0(fname,"$","Planned_interaction","=","interaction(",fname,"$",input$v1,",",
                    fname,"$",input$v2,", sep = '_'",")"))
         cat(sep = "\n")
-        cat(paste0("contrasts(",fname,"$","Planned_interaction",",","how.many=",as.numeric(input$hm2),")","=",faktor2_int()))
-        cat(sep = "\n")
-        cat(paste0("########### with hypr package"))
+        cat(paste0("contrasts(",fname,"$","Planned_interaction",",","how.many=",ncomparisons$hm2,")","=",faktor2_int()))
+        }else{
+        cat(paste0(fname,"$","Planned_interaction","=","interaction(",fname,"$",input$v1,",",
+                     fname,"$",input$v2,", sep = '_'",")"))
         cat(sep = "\n")
         h <- hypr(facktor_int())
         cat(paste0("h <- ", hypr_call(h)))
         cat(sep = "\n")
-        cat(paste0("contrasts(",fname,"$","Planned_interaction",")",
-                   "=","cmat(h)"))
+        cat(paste0("contrasts(",fname,"$","Planned_interaction,","how.many=",ncomparisons$hm2,")",
+                   "=","cmat(h)"))}
       }else{
+        if(input$radio_output2=="br"){
         if(input$cont1=="Customized"){
           h1 <- hypr(faktorS1(),levels = levels(factor(a[,input$v1])))
-          cat(paste0("contrasts(",fname,"$",input$v1,",","how.many=",ncol(cmat(h1)),")","=",faktorV1()))
+          cat(paste0("contrasts(",fname,"$",input$v1,",","how.many=",ncomparisons$ihm1,")","=",faktorV1()))
         }else{
           cat(paste0("contrasts(",fname,"$",input$v1,")","=",faktorV1()))
         }
         cat(sep = "\n")
         if(input$cont2=="Customized"){
           h2 <- hypr(faktorS2(),levels = levels(factor(a[,input$v2])))
-          cat(paste0("contrasts(",fname,"$",input$v2,",","how.many=",ncol(cmat(h2)),")","=",faktorV2()))
+          cat(paste0("contrasts(",fname,"$",input$v2,",","how.many=",ncomparisons$ihm2,")","=",faktorV2()))
         }else{
           cat(paste0("contrasts(",fname,"$",input$v2,")","=",faktorV2()))
         }
-        cat(sep = "\n")
-        # if(input$onlyI==TRUE){
-        #   cat(paste0(fname,"$","Planned_interaction","=","interaction(",fname,"$",input$v1,",",
-        #              fname,"$",input$v2,", sep = '_'",")"))
-        #   cat(sep = "\n")
-        #   cat(paste0("levels(",fname,"$","Planned_interaction)","=","sort(levels(",fname,"$","Planned_interaction))"))
-        #   cat(sep = "\n")
-        #   cat(paste0("contrasts(",fname,"$","Planned_interaction",",","how.many=",as.numeric(ncol(cont_mat_int())),")","=",faktor3_int()))
-        #   cat(sep = "\n")
-        # }
-        cat(paste0("########### with hypr package"))
-        cat(sep = "\n")
+        }else{
         cat(paste0("h_",input$v1, " <- ", hypr_call(faktorV1_hypr())))
         cat(sep = "\n")
-        cat(paste0("contrasts(",fname,"$",input$v1,")","=","cmat(h_",input$v1,")"))
+        if(input$cont1=="Customized"){
+          cat(paste0("contrasts(",fname,"$",input$v1,", how.many = ",ncomparisons$ihm1,")","=","cmat(h_",input$v1,")"))
+        }else{
+          cat(paste0("contrasts(",fname,"$",input$v1,")","=","cmat(h_",input$v1,")"))
+        }
         cat(sep = "\n")
         cat(paste0("h_",input$v2, " <- ", hypr_call(faktorV2_hypr())))
         cat(sep = "\n")
-        cat(paste0("contrasts(",fname,"$",input$v2,")","=","cmat(h_",input$v2,")"))
+        if(input$cont2=="Customized"){
+          cat(paste0("contrasts(",fname,"$",input$v2,", how.many = ",ncomparisons$ihm2,")","=","cmat(h_",input$v2,")"))
+        }else{
+          cat(paste0("contrasts(",fname,"$",input$v2,")","=","cmat(h_",input$v2,")"))
+        }
         cat(sep = "\n")
-        # if(input$onlyI==TRUE){
-        #   cat(paste0("h_int <-","h_",input$v1," & ","h_",input$v2))
-        #   cat(sep = "\n")
-        #   cat(paste0("contrasts(",fname,"$","Planned_interaction",",","how.many=",as.numeric(ncol(cont_mat_int())),")","= cmat(h_int)"))
-        # }
-       }
+       }}
 
     }else{
       cat(paste0(fname,"$",input$v1,"=","factor(",fname,"$",input$v1,")"))
@@ -1467,75 +1633,75 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
       cat(paste0(fname,"$",input$v3,"=","factor(",fname,"$",input$v3,")"))
       cat(sep = "\n")
       if(input$fc2==TRUE){
+        if(input$radio_output2=="br"){
       cat(paste0(fname,"$","Planned_interaction","=","interaction(",fname,"$",input$v1,",",
                  fname,"$",input$v2,",",
                  fname,"$",input$v3,",",
                  ", sep = '_'",")"))
       cat(sep = "\n")
-      cat(paste0("contrasts(",fname,"$","Planned_interaction",")",
+      cat(paste0("contrasts(",fname,"$","Planned_interaction, how.many =",ncomparisons$hm2,")",
                  "=",faktor2_int()))
-      cat(sep = "\n")
-      cat(paste0("########### with hypr package"))
+      }else{
+      cat(paste0(fname,"$","Planned_interaction","=","interaction(",fname,"$",input$v1,",",
+                   fname,"$",input$v2,",",
+                   fname,"$",input$v3,",",
+                   ", sep = '_'",")"))
       cat(sep = "\n")
       cat(paste0("h <- ", hypr_call(hypr(facktor_int()))))
       cat(sep = "\n")
-      cat(paste0("contrasts(",fname,"$","Planned_interaction",")",
-                 "=","cmat(h)"))
+      cat(paste0("contrasts(",fname,"$","Planned_interaction, how.many =",ncomparisons$hm2,")",
+                 "=","cmat(h)"))}
       }else{
+        if(input$radio_output2=="br"){
         if(input$cont1=="Customized"){
           h1 <- hypr(faktorS1(),levels = levels(factor(a[,input$v1])))
-          cat(paste0("contrasts(",fname,"$",input$v1,",","how.many=",ncol(cmat(h1)),")","=",faktorV1()))
+          cat(paste0("contrasts(",fname,"$",input$v1,",","how.many=",ncomparisons$ihm1,")","=",faktorV1()))
         }else{
           cat(paste0("contrasts(",fname,"$",input$v1,")","=",faktorV1()))
         }
         cat(sep = "\n")
         if(input$cont2=="Customized"){
           h2 <- hypr(faktorS2(),levels = levels(factor(a[,input$v2])))
-          cat(paste0("contrasts(",fname,"$",input$v2,",","how.many=",ncol(cmat(h2)),")","=",faktorV2()))
+          cat(paste0("contrasts(",fname,"$",input$v2,",","how.many=",ncomparisons$ihm2,")","=",faktorV2()))
         }else{
           cat(paste0("contrasts(",fname,"$",input$v2,")","=",faktorV2()))
         }
         cat(sep = "\n")
         if(input$cont3=="Customized"){
           h3 <- hypr(faktorS3(),levels = levels(factor(a[,input$v3])))
-          cat(paste0("contrasts(",fname,"$",input$v3,",","how.many=",ncol(cmat(h3)),")","=",faktorV3()))
+          cat(paste0("contrasts(",fname,"$",input$v3,",","how.many=",ncomparisons$ihm3,")","=",faktorV3()))
         }else{
           cat(paste0("contrasts(",fname,"$",input$v3,")","=",faktorV3()))
         }
-        cat(sep = "\n")
-        # if(input$onlyI==TRUE){
-        #   cat(paste0(fname,"$","Planned_interaction","=","interaction(",fname,"$",input$v1,",",
-        #              fname,"$",input$v2,",",
-        #              fname,"$",input$v3,",",
-        #              ", sep = '_'",")"))
-        #   cat(sep = "\n")
-        #   cat(paste0("levels(",fname,"$","Planned_interaction)","=","sort(levels(",fname,"$","Planned_interaction))"))
-        #   cat(sep = "\n")
-        #   cat(paste0("contrasts(",fname,"$","Planned_interaction",",","how.many=",as.numeric(ncol(cont_mat_int())),")","=",faktor3_int()))
-        #   cat(sep = "\n")
-        # }
-        cat(paste0("########### with hypr package"))
-        cat(sep = "\n")
+        }else{
         cat(paste0("h_",input$v1, " <- ", hypr_call(faktorV1_hypr())))
         cat(sep = "\n")
-        cat(paste0("contrasts(",fname,"$",input$v1,")","=","cmat(h_",input$v1,")"))
+        if(input$cont1=="Customized") {
+          cat(paste0("contrasts(",fname,"$",input$v1,", how.many = ",ncomparisons$ihm1,")","=","cmat(h_",input$v1,")"))
+        } else {
+          cat(paste0("contrasts(",fname,"$",input$v1,")","=","cmat(h_",input$v1,")"))
+        }
         cat(sep = "\n")
         cat(paste0("h_",input$v2, " <- ", hypr_call(faktorV2_hypr())))
         cat(sep = "\n")
-        cat(paste0("contrasts(",fname,"$",input$v2,")","=","cmat(h_",input$v2,")"))
+        if(input$cont2=="Customized") {
+          cat(paste0("contrasts(",fname,"$",input$v2,", how.many = ",ncomparisons$ihm2,")","=","cmat(h_",input$v2,")"))
+        } else {
+          cat(paste0("contrasts(",fname,"$",input$v2,")","=","cmat(h_",input$v2,")"))
+        }
         cat(sep = "\n")
         cat(paste0("h_",input$v3, " <- ", hypr_call(faktorV3_hypr())))
         cat(sep = "\n")
-        cat(paste0("contrasts(",fname,"$",input$v3,")","=","cmat(h_",input$v3,")"))
-        # if(input$onlyI==TRUE){
-        #   cat(sep = "\n")
-        #   cat(paste0("h_int <-","h_",input$v1," & ","h_",input$v2," & ","h_",input$v3))
-        #   cat(sep = "\n")
-        #   cat(paste0("contrasts(",fname,"$","Planned_interaction",",","how.many=",as.numeric(ncol(cont_mat_int())),")","= cmat(h_int)"))
-        # }
-      #
-       }
+        if(input$cont2=="Customized") {
+          cat(paste0("contrasts(",fname,"$",input$v3,", how.many = ",ncomparisons$ihm3,")","=","cmat(h_",input$v3,")"))
+        } else {
+          cat(paste0("contrasts(",fname,"$",input$v3,")","=","cmat(h_",input$v3,")"))
+        }
+       }}
     }
+     }},error=function(e){
+       cat("It seems that something is missing. Complete the previous step!")
+     })
 
 
   })
@@ -1632,8 +1798,6 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
          cat(paste0("Your final comparisons will be: ",ncol(mat)))
        }else{
          mat2=cont_mat_int()
-         cat(paste0("You selected fully customazized interaction contrasts."))
-         cat(sep = "\n")
          cat(paste0("For your first variable, you selected ",input$cont1," contrasts."))
          cat(sep = "\n")
          cat(paste0("For your second variable, you selected ",input$cont2," contrasts."))
@@ -1641,28 +1805,30 @@ updateSelectInput(session, "default_data", choices = default_data_labels())
            cat(sep = "\n")
            cat(paste0("For your third variable, you selected ",input$cont3," contrasts."))
          }
-         cat(sep = "\n")
-         if(input$radio=="Two way"){
-         cat(paste0("Remember that, from column C1 to column C",ncol(faktorS1()), " you are examining the comparisons related to the first variable"))
-         cat(sep = "\n")
-         cat(paste0("Remember that, from column C",ncol(faktorS1())+1, " to column C",ncol(faktorS1())+ncol(faktorS2()), " you are examining the comparison related to the second variable"))
-         cat(sep = "\n")
-         cat(paste0("Remember that, the last ",ncol(mat2)-(ncol(faktorS1())+ncol(faktorS2()))-1, " columns refer to the interaction comparisons"))
-         }else{
-           cat(paste0("Remember that, from column C1 to column C",ncol(faktorS1()), " you are examining the comparisons related to the first variable"))
-           cat(sep = "\n")
-           cat(paste0("Remember that, from column C",ncol(faktorS1())+1, " to column C",ncol(faktorS1())+ncol(faktorS2()), " you are examining the comparison related to the second variable"))
-           cat(sep = "\n")
-           cat(paste0("Remember that, from column C",ncol(faktorS1())+ncol(faktorS2())+1, " to column C",ncol(faktorS1())+ncol(faktorS2())+ncol(faktorS3()), " you are examining the comparison related to the third variable"))
-           cat(sep = "\n")
-           cat(paste0("Remember that, the last ",ncol(mat2)-(ncol(faktorS1())+ncol(faktorS2())+ncol(faktorS3()))-1, " columns refer to the interaction comparisons"))
-         }
+         # cat(sep = "\n")
+         # if(input$radio=="Two way"){
+         # cat(paste0("Remember that, from column C1 to column C",ncol(faktorS1()), " you are examining the comparisons related to the first variable"))
+         # cat(sep = "\n")
+         # cat(paste0("Remember that, from column C",ncol(faktorS1())+1, " to column C",ncol(faktorS1())+ncol(faktorS2()), " you are examining the comparison related to the second variable"))
+         # cat(sep = "\n")
+         # cat(paste0("Remember that, the last ",ncol(mat2)-(ncol(faktorS1())+ncol(faktorS2()))-1, " columns refer to the interaction comparisons"))
+         # }else{
+         #   cat(paste0("Remember that, from column C1 to column C",ncol(faktorS1()), " you are examining the comparisons related to the first variable"))
+         #   cat(sep = "\n")
+         #   cat(paste0("Remember that, from column C",ncol(faktorS1())+1, " to column C",ncol(faktorS1())+ncol(faktorS2()), " you are examining the comparison related to the second variable"))
+         #   cat(sep = "\n")
+         #   cat(paste0("Remember that, from column C",ncol(faktorS1())+ncol(faktorS2())+1, " to column C",ncol(faktorS1())+ncol(faktorS2())+ncol(faktorS3()), " you are examining the comparison related to the third variable"))
+         #   cat(sep = "\n")
+         #   cat(paste0("Remember that, the last ",ncol(mat2)-(ncol(faktorS1())+ncol(faktorS2())+ncol(faktorS3()))-1, " columns refer to the interaction comparisons"))
+         # }
          cat(sep = "\n")
          cat(paste0("Interpret the model coefficients accordingly!"))
        }},error=function(e){
          # cat("Waiting..")
        })
    })
+
+
 
 
 }
