@@ -1,8 +1,9 @@
-74912eb8fb0fac0491474420105346b2 *DESCRIPTION
+88cfb515f2338ca06f9a958d2a6c6348 *DESCRIPTION
 b3c7f5d6e1ca3c9d60bc2c294351d230 *NAMESPACE
 799e5f8ac7e3c42207df54bca65ad00a *R/appRiori.R
 d7cad180a84de6d2a51aba2144824fae *R/functions.R
 c4b3231c4bd6e1db6d66cb586ddeb154 *R/mixedDesign.v0.6.3.R
+59f4a1dca43d8cca78c32bcc0d8d0c3e *inst/CITATION
 b1c98b7e596805efb2b872d8ebf7d6b6 *inst/app/server.R
 eb149fcada340a30da6f0270d2e3c8e7 *inst/app/ui.R
 8546d43331d8b0e197ed71449ec60e1d *inst/tutorial/airquality.csv
@@ -11,8 +12,10 @@ a3fdde080077d98bdfd6ea2bea102895 *inst/tutorial/basics2.md
 c050477f88b4c42eb67a47358fc3c8c4 *inst/tutorial/cont.md
 1cfa472f23ec6399f159c246e654e36f *inst/tutorial/ex1.md
 e6381212ed9833c6c33bea7274505e97 *inst/tutorial/ex2.md
-0e2fb766b9db4ee84098410d6a4e53f6 *inst/tutorial/tutorial0.md
-99dbf30caf0d861d1710ffb70aeeaaed *inst/tutorial/welcome.md
+db5480d7b8994eef2c1d360fdefa1ebf *inst/tutorial/tutorial0.html
+7cc6038cac590e5d2a7a123fb71f17c6 *inst/tutorial/tutorial0.md
+0e6def751aca160395f9ca99dbe9f898 *inst/tutorial/welcome.html
+9fe48cf5263ea556a5342163197b0f02 *inst/tutorial/welcome.md
 b49d14691ebfd8e85447c79e3367d57e *inst/tutorial/www/c1.png
 a0c09646c13c55ae7894d82b02c86f65 *inst/tutorial/www/c1_code.png
 c4813112fb9aa40207a7b163d9598ef5 *inst/tutorial/www/c1_output.png
